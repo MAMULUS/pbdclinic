@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PBD Clinic</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f4f8;
+            color: #1a202c;
+        }
+
+        header {
+            background: #1a56db;
+            color: white;
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #1a56db;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            margin-bottom: 0.8rem;
+        }
+
+        label { font-size: 0.85rem; color: #4a5568; }
+
+        input[type="text"], input[type="datetime-local"] {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            width: 100%;
+        }
+
+        .consent-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.8rem;
+            font-size: 0.85rem;
+            color: #4a5568;
+        }
+
+        button {
+            background: #1a56db;
+            color: white;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        button:hover { background: #1e429f; }
+
+        .result {
+            margin-top: 0.8rem;
+            padding: 0.75rem;
+            background: #f0fff4;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: #2d3748;
+            display: none;
+            line-height: 1.6;
+        }
+        .result.visible { display: block; }
+        .result.error { color: #c53030; background: #fff5f5; }
+    </style>
+</head>
+<body>
+
+<header>🏥 PBD Clinic — Privacy by Design</header>
+
+<div class="container">
+
+    <!-- Registrar Paciente -->
+    <div class="card">
+        <h2>Registrar Paciente</h2>
+        <div class="consent-row">
+            <input type="checkbox" id="consent">
+            <label for="consent">El paciente consiente el tratamiento de sus datos mínimos</label>
+        </div>
+        <button onclick="registerPatient()">Registrar</button>
+        <div class="result" id="result-register"></div>
+    </div>
+
+    <!-- Buscar Paciente -->
+    <div class="card">
+        <h2>Buscar Paciente</h2>
+        <div class="field">
+            <label>ID del paciente</label>
+            <input type="text" id="patient-search-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        </div>
+        <button onclick="getPatient()">Buscar</button>
+        <div class="result" id="result-patient"></div>
+    </div>
+
+    <!-- Agendar Cita -->
+    <div class="card">
+        <h2>Agendar Cita</h2>
+        <div class="field">
+            <label>ID del paciente</label>
+            <input type="text" id="appt-patient-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        </div>
+        <div class="field">
+            <label>Motivo</label>
+            <input type="text" id="appt-reason" placeholder="Consulta general">
+        </div>
+        <div class="field">
+            <label>Fecha y hora</label>
+            <input type="datetime-local" id="appt-date">
+        </div>
+        <button onclick="createAppointment()">Agendar</button>
+        <div class="result" id="result-appt"></div>
+    </div>
+
+    <!-- Buscar Cita -->
+    <div class="card">
+        <h2>Buscar Cita</h2>
+        <div class="field">
+            <label>ID de la cita</label>
+            <input type="text" id="appt-search-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        </div>
+        <button onclick="getAppointment()">Buscar</button>
+        <div class="result" id="result-appt-get"></div>
+    </div>
+
+</div>
+
+<script>
+    const API = "https://pbdclinic.manalfonso1999.workers.dev";
+
+    function showResult(id, data, isError = false) {
+    const el = document.getElementById(id);
+    el.className = "result visible" + (isError ? " error" : "");
+
+    if (isError) {
+        el.textContent = "⚠️ " + (data.error || "Error desconocido");
+        return;
+    }
+
+    let html = "";
+
+    if (data.id && data.consent !== undefined) {
+        // Respuesta de paciente
+        html = `✅ Paciente registrado<br>
+        <b>ID:</b> ${data.id}<br>
+        <b>Registrado:</b> ${new Date(data.created_at).toLocaleString("es-PA")}`;
+    } else if (data.id && data.patient_id) {
+        // Respuesta de cita
+        html = `✅ Cita agendada<br>
+        <b>ID cita:</b> ${data.id}<br>
+        <b>Motivo:</b> ${data.reason}<br>
+        <b>Fecha:</b> ${new Date(data.scheduled_at).toLocaleString("es-PA")}<br>
+        <b>Creada:</b> ${new Date(data.created_at).toLocaleString("es-PA")}`;
+    } else if (data.id && data.created_at) {
+        // Registro nuevo
+        html = `✅ Operación exitosa<br>
+        <b>ID:</b> ${data.id}<br>
+        <b>Fecha:</b> ${new Date(data.created_at).toLocaleString("es-PA")}`;
+    }
+
+        el.innerHTML = html;
+    }
+
+    async function registerPatient() {
+        const consent = document.getElementById("consent").checked;
+        if (!consent) {
+            showResult("result-register", { error: "Debe marcar el consentimiento" }, true);
+            return;
+        }
+        try {
+            const res = await fetch(`${API}/api/patients`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ consent: true })
+            });
+            const data = await res.json();
+            showResult("result-register", data, !res.ok);
+        } catch (e) {
+            showResult("result-register", { error: e.message }, true);
+        }
+    }
+
+    async function getPatient() {
+        const id = document.getElementById("patient-search-id").value.trim();
+        if (!id) return;
+        try {
+            const res = await fetch(`${API}/api/patients/${id}`);
+            const data = await res.json();
+            showResult("result-patient", data, !res.ok);
+        } catch (e) {
+            showResult("result-patient", { error: e.message }, true);
+        }
+    }
+
+    async function createAppointment() {
+        const patient_id = document.getElementById("appt-patient-id").value.trim();
+        const reason = document.getElementById("appt-reason").value.trim();
+        const scheduled_at = document.getElementById("appt-date").value;
+        if (!patient_id || !reason || !scheduled_at) {
+            showResult("result-appt", { error: "Todos los campos son requeridos" }, true);
+            return;
+        }
+        try {
+            const res = await fetch(`${API}/api/appointments`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ patient_id, reason, scheduled_at })
+            });
+            const data = await res.json();
+            showResult("result-appt", data, !res.ok);
+        } catch (e) {
+            showResult("result-appt", { error: e.message }, true);
+        }
+    }
+
+    async function getAppointment() {
+        const id = document.getElementById("appt-search-id").value.trim();
+        if (!id) return;
+        try {
+            const res = await fetch(`${API}/api/appointments/${id}`);
+            const data = await res.json();
+            showResult("result-appt-get", data, !res.ok);
+        } catch (e) {
+            showResult("result-appt-get", { error: e.message }, true);
+        }
+    }
+</script>
+
+</body>
+</html>
